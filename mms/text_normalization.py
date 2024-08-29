@@ -83,9 +83,9 @@ def text_normalize(
         complete_digit_pattern = (
             r"^"
             + digits_pattern
-            + "(?=\s)|(?<=\s)"
+            + r"(?=\s)|(?<=\s)"
             + digits_pattern
-            + "(?=\s)|(?<=\s)"
+            + r"(?=\s)|(?<=\s)"
             + digits_pattern
             + "$"
         )

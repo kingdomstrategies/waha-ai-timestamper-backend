@@ -5,14 +5,13 @@ import tempfile
 from dataclasses import dataclass
 from typing import Any, List, TypedDict, Union
 
-import halo
 import sox
 import torch
 import torchaudio
 import torchaudio.functional as F
 from torchaudio.models import wav2vec2_model
 
-from download_model import dict_name, model_name
+from constants import dict_name, model_name
 
 SAMPLING_FREQ = 16000
 EMISSION_INTERVAL = 30
@@ -177,7 +176,6 @@ def get_spans(tokens: List[str], segments: List[Segment]):
 
 
 def generate_emissions(model: Any, audio_file: str):
-    print(audio_file)
     waveform, _ = torchaudio.load(audio_file)  # waveform: channels X T
     waveform = waveform.to(DEVICE)
 
@@ -230,7 +228,7 @@ def get_alignments(
     dictionary: dict[str, int],
     use_star: bool,
 ):
-    spinner = halo.Halo(text="Aligning...", spinner="dots").start()
+
     # Generate emissions
     emissions, stride = generate_emissions(model, audio_file)
     T, _ = emissions.size()
@@ -243,7 +241,7 @@ def get_alignments(
             dictionary[c] for c in " ".join(tokens).split(" ") if c in dictionary
         ]
     else:
-        spinner.fail(f"Empty transcript for audio file {audio_file}.")
+        print(f"Empty transcript for audio file {audio_file}.")
         token_indices = []
 
     blank = dictionary["<blank>"]
@@ -262,12 +260,12 @@ def get_alignments(
     path = path.squeeze().to("cpu").tolist()
     idx_to_token_map = {v: k for k, v in dictionary.items()}
     segments = merge_repeats(path, idx_to_token_map)
-    spinner.succeed("Forced alignment done.")
+
     return segments, stride
 
 
 def get_model_and_dict():
-    state_dict = torch.load(model_name, map_location="cpu")
+    state_dict = torch.load(model_name, map_location="cpu", weights_only=True)
 
     model = wav2vec2_model(
         extractor_mode="layer_norm",

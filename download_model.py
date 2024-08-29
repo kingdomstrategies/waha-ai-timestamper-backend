@@ -2,12 +2,7 @@ import os
 
 import torch
 
-model_name = "ctc_alignment_mling_uroman_model.pt"
-model_url = (
-    "https://dl.fbaipublicfiles.com/mms/torchaudio/ctc_alignment_mling_uroman/model.pt"
-)
-dict_name = "ctc_alignment_mling_uroman_model.dict"
-dict_url = "https://dl.fbaipublicfiles.com/mms/torchaudio/ctc_alignment_mling_uroman/dictionary.txt"
+from constants import dict_name, dict_url, model_name, model_url
 
 print("Downloading model...")
 if os.path.exists(model_name):

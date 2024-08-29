@@ -2,8 +2,7 @@
 FROM python:3-slim
 
 EXPOSE 5002
-
-RUN apt-get update -qq && apt-get -y install sox
+RUN apt update && apt upgrade && apt -y install sox ffmpeg
 
 # Keeps Python from generating .pyc files in the container
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -17,7 +16,7 @@ RUN python -m pip install -r requirements.txt
 
 WORKDIR /app
 
-COPY download_model.py /app/
+COPY download_model.py constants.py /app/
 RUN python ./download_model.py
 
 COPY mms /app/mms/
@@ -29,4 +28,4 @@ RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /
 USER appuser
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD ["gunicorn", "--bind", "0.0.0.0:5002", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5002", "main:app", "--timeout", "999999"]
