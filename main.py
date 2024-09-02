@@ -78,11 +78,12 @@ def align_session():
 
     # Start alignment in a separate process to avoid blocking the main
     # thread and to send a response to the client immediately.
-    # pool.apply_async(
-    #     align_matches, [session_id, language, session_doc_ref, matched_files]
-    # )
-    align_matches(
-        session_id, language, session_doc_ref, matched_files, model, dictionary
+    pool.apply_async(
+        align_matches,
+        [session_id, language, session_doc_ref, matched_files, model, dictionary],
     )
+    # align_matches(
+    #     session_id, language, session_doc_ref, matched_files, model, dictionary
+    # )
 
     return "Alignment started.", 200
