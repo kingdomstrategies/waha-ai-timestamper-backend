@@ -130,7 +130,6 @@ def get_spans(tokens: List[str], segments: List[Segment]):
     start, end = (0, 0)
     sil = "<blank>"
     for seg_idx, seg in enumerate(segments):
-        print(seg_idx, seg.label)
         if tokens_idx == len(tokens):
             assert seg_idx == len(segments) - 1
             assert seg.label == "<blank>"
@@ -139,8 +138,6 @@ def get_spans(tokens: List[str], segments: List[Segment]):
         ltr = cur_token[ltr_idx]
         if seg.label == "<blank>":
             continue
-        if seg.label != ltr:
-            print(f"seg.label: {seg.label}, ltr: {ltr}")
         assert seg.label == ltr
         if (ltr_idx) == 0:
             start = seg_idx

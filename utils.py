@@ -117,8 +117,6 @@ def align_matches(
                 dictionary,
             )
 
-            print(norm_lines_to_timestamp, segments)
-
             spans = get_spans(uroman_lines_to_timestamp, segments)
 
             sections = []
