@@ -130,6 +130,7 @@ def get_spans(tokens: List[str], segments: List[Segment]):
     start, end = (0, 0)
     sil = "<blank>"
     for seg_idx, seg in enumerate(segments):
+        print(seg_idx, seg.label)
         if tokens_idx == len(tokens):
             assert seg_idx == len(segments) - 1
             assert seg.label == "<blank>"
@@ -138,6 +139,8 @@ def get_spans(tokens: List[str], segments: List[Segment]):
         ltr = cur_token[ltr_idx]
         if seg.label == "<blank>":
             continue
+        if seg.label != ltr:
+            print(f"seg.label: {seg.label}, ltr: {ltr}")
         assert seg.label == ltr
         if (ltr_idx) == 0:
             start = seg_idx
@@ -178,8 +181,8 @@ def get_spans(tokens: List[str], segments: List[Segment]):
 def generate_emissions(model: Any, audio_file: str):
     waveform, _ = torchaudio.load(audio_file)  # waveform: channels X T
     waveform = waveform.to(DEVICE)
-
     total_duration = sox.file_info.duration(audio_file)
+
     assert total_duration, "Could not get duration of audio file"
 
     audio_sf = sox.file_info.sample_rate(audio_file)
@@ -226,14 +229,13 @@ def get_alignments(
     tokens: List[str],
     model: Any,
     dictionary: dict[str, int],
-    use_star: bool,
 ):
 
     # Generate emissions
     emissions, stride = generate_emissions(model, audio_file)
     T, _ = emissions.size()
-    if use_star:
-        emissions = torch.cat([emissions, torch.zeros(T, 1).to(DEVICE)], dim=1)
+
+    emissions = torch.cat([emissions, torch.zeros(T, 1).to(DEVICE)], dim=1)
 
     # Force Alignment
     if tokens:
@@ -250,6 +252,7 @@ def get_alignments(
 
     input_lengths = torch.tensor(emissions.shape[0]).unsqueeze(-1)
     target_lengths = torch.tensor(targets.shape[0]).unsqueeze(-1)
+
     path, _ = F.forced_align(
         emissions.unsqueeze(0),
         targets.unsqueeze(0),
@@ -257,6 +260,7 @@ def get_alignments(
         target_lengths,
         blank=blank,
     )
+
     path = path.squeeze().to("cpu").tolist()
     idx_to_token_map = {v: k for k, v in dictionary.items()}
     segments = merge_repeats(path, idx_to_token_map)

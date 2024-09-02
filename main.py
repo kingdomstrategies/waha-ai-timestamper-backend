@@ -1,101 +1,88 @@
 import os
-import time
-import urllib.parse
-import urllib.request
+from multiprocessing.dummy import Pool
 
+import torch
 from flask import Flask, request
+from halo import Halo
 
-from mms.align_utils import (
-    DEVICE,
-    get_alignments,
-    get_model_and_dict,
-    get_spans,
-    get_uroman_tokens,
-)
-from mms.text_normalization import text_normalize
+from constants import dict_name, dict_url, model_name, model_url
+from firebase import bucket, db
+from mms.align_utils import DEVICE, get_model_and_dict
+from timestamp_types import File, Status
+from utils import align_matches, match_files
 
+pool = Pool(10)
 app = Flask(__name__)
+
+model_spinner = Halo(text="Downloading model...").start()
+if os.path.exists(model_name):
+    model_spinner.info("Model already downloaded.")
+else:
+    torch.hub.download_url_to_file(
+        model_url,
+        model_name,
+    )
+    model_spinner.succeed("Model downloaded.")
+assert os.path.exists(model_name)
+
+dict_spinner = Halo(text="Downloading dictionary...").start()
+if os.path.exists(dict_name):
+    dict_spinner.info("Dictionary already downloaded.")
+else:
+    torch.hub.download_url_to_file(
+        dict_url,
+        dict_name,
+    )
+    dict_spinner.succeed("Dictionary downloaded.")
+assert os.path.exists(dict_name)
+
+load_spinner = Halo(text="Loading model and dictionary...").start()
+model, dictionary = get_model_and_dict()
+dictionary["<star>"] = len(dictionary)
+model = model.to(DEVICE)
+load_spinner.succeed("Model and dictionary loaded. Ready to receive requests.")
 
 
 @app.route("/")
-def hello_world():
+def align_session():
     language = request.args.get("lang")
-    audio_file = request.args.get("audio-file")
-    text_file = request.args.get("text-file")
     session_id = request.args.get("session-id")
 
-    if audio_file is None:
-        return "Missing audio-file parameter", 400
-    elif text_file is None:
-        return "Missing text-file parameter", 400
-    elif language is None:
+    if language is None:
         return "Missing lang parameter", 400
     elif session_id is None:
         return "Missing session-id parameter", 400
 
-    base_url = "https://firebasestorage.googleapis.com/v0/b/waha-ai-timestamper-4265a.appspot.com/o/"
-    audio_path = f"sessions/{session_id}/{audio_file}"
-    text_path = f"sessions/{session_id}/{text_file}"
-    audio_path_encoded = urllib.parse.quote(audio_path, safe="")
-    text_path_encoded = urllib.parse.quote(text_path, safe="")
-    audio_url = f"{base_url}{audio_path_encoded}?alt=media"
-    text_url = f"{base_url}{text_path_encoded}?alt=media"
-    print(audio_url, text_url)
+    blobs = bucket.list_blobs(prefix=f"sessions/{session_id}")
+    files: list[File] = []
 
-    if not os.path.exists(audio_file):
-        print("Downloading audio... ")
-        urllib.request.urlretrieve(
-            audio_url,
-            audio_file,
-        )
+    for blob in blobs:
+        files.append((blob.name.split("/")[-1], blob.public_url, blob.name))
 
-    if not os.path.exists(text_file):
-        print("Downloading text... ")
-        urllib.request.urlretrieve(
-            text_url,
-            text_file,
-        )
+    if len(files) == 0:
+        return "No files found in session", 404
 
-    print("Normalizing and romanizing... ")
-    lines_to_timestamp = open(text_file, "r", encoding="utf-8").read().split("\n")
-    norm_lines_to_timestamp = [
-        text_normalize(line.strip(), language) for line in lines_to_timestamp
-    ]
-    uroman_lines_to_timestamp = get_uroman_tokens(norm_lines_to_timestamp, language)
+    session_doc_ref = db.collection("sessions").document(session_id)
+    session_doc = session_doc_ref.get()
+    session_doc = None if not session_doc.exists else session_doc.to_dict()
 
-    print("Loading model.... ")
-    model, dictionary = get_model_and_dict()
-    model = model.to(DEVICE)
+    if (
+        session_doc is not None
+        and session_doc.get("status") == Status.IN_PROGRESS.value
+    ):
+        return "Session already in progress", 400
 
-    print("Aligning...")
-    segments, stride = get_alignments(
-        audio_file,
-        uroman_lines_to_timestamp,
-        model,
-        dictionary,
-        False,
+    matched_files = match_files(files)
+
+    session_doc_ref.set({"status": Status.IN_PROGRESS.value}, merge=True)
+
+    # Start alignment in a separate process to avoid blocking the main
+    # thread and to send a response to the client immediately.
+    # pool.apply_async(
+    #     align_matches, [session_id, language, session_doc_ref, matched_files]
+    # )
+    align_matches(
+        session_id, language, session_doc_ref, matched_files, model, dictionary
     )
-    spans = get_spans(uroman_lines_to_timestamp, segments)
 
-    sections = []
-
-    for i, t in enumerate(lines_to_timestamp):
-        span = spans[i]
-        seg_start_idx = span[0].start
-        seg_end_idx = span[-1].end
-
-        audio_start_sec = seg_start_idx * stride / 1000
-        audio_end_sec = seg_end_idx * stride / 1000
-
-        sample = {
-            "begin": audio_start_sec,
-            "end": audio_end_sec,
-            "begin_str": time.strftime("%H:%M:%S", time.gmtime(audio_start_sec)),
-            "end_str": time.strftime("%H:%M:%S", time.gmtime(audio_end_sec)),
-            "text": t,
-            "uroman_tokens": uroman_lines_to_timestamp[i],
-        }
-
-        sections.append(sample)
-
-    return sections
+    return "Alignment started.", 200

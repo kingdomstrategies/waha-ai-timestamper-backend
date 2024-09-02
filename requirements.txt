@@ -5,3 +5,6 @@ torchaudio
 flask
 gunicorn
 uroman
+firebase-admin
+ffmpeg-python
+halo
