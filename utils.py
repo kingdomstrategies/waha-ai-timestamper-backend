@@ -27,6 +27,7 @@ def match_files(
 
     for filename, url, path in files:
         name, ext = filename.rsplit(".", 1)
+
         ext = f".{ext}"
 
         if ext in audio_extensions:
@@ -59,25 +60,35 @@ def align_matches(
     """
     Align audio and text files and write output to Firestore.
     """
+    spinner = Halo("Aligning...").start()
 
     file_timestamps: list[FileTimestamps] = []
     folder = f"/tmp/sessions/{session_id}"
     Path(folder).mkdir(parents=True, exist_ok=True)
 
+    progress = 0
+    session_doc_ref.set({"total": len(matches), "progress": progress}, merge=True)
+
     for match in matches:
+        session_doc_ref.set({"current": match[0][0]}, merge=True)
         try:
             audio_output = f"{folder}/{match[0][0]}"
             audio_type = match[0][0].split(".")[-1]
 
             text_output = f"{folder}/{match[1][0]}"
 
-            audio_spinner = Halo(text=f"Downloading audio to {audio_output}...").start()
+            spinner.text = f"Downloading audio to {audio_output}..."
+            spinner.start()
 
             bucket.blob(match[0][2]).download_to_filename(audio_output)
 
-            wav_output = audio_output.replace(f".{audio_type}", ".wav")
+            spinner.succeed(f"Audio downloaded to {audio_output}.")
 
-            audio_spinner.text = "Converting audio to {wav_output}..."
+            wav_output = audio_output.replace(f".{audio_type}", "_output.wav")
+
+            spinner.text = f"Converting audio to {wav_output}..."
+            spinner.start()
+
             stream = ffmpeg.input(audio_output)
             stream = ffmpeg.output(stream, wav_output, acodec="pcm_s16le", ar=16000)
             stream = ffmpeg.overwrite_output(stream)
@@ -86,14 +97,16 @@ def align_matches(
                 overwrite_output=True,
                 cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
             )
-            audio_spinner.succeed(f"Audio downloaded and converted to {wav_output}.")
+            spinner.succeed(f"Audio downloaded and converted to {wav_output}.")
 
             text_output = f"{folder}/{match[1][0]}"
-            text_spinner = Halo(f"Downloading text to {text_output}...").start()
+            spinner.text = f"Downloading text to {text_output}..."
+            spinner.start()
             bucket.blob(match[1][2]).download_to_filename(text_output)
-            text_spinner.succeed(f"Text downloaded to {text_output}.")
+            spinner.succeed(f"Text downloaded to {text_output}.")
 
-            norm_spinner = Halo("Normalizing and romanizing... ").start()
+            spinner.text = "Normalizing and romanizing... "
+            spinner.start()
             lines_to_timestamp = (
                 open(text_output, "r", encoding="utf-8").read().split("\n")
             )
@@ -106,9 +119,10 @@ def align_matches(
             uroman_lines_to_timestamp = ["<star>"] + uroman_lines_to_timestamp
             lines_to_timestamp = ["<star>"] + lines_to_timestamp
             norm_lines_to_timestamp = ["<star>"] + norm_lines_to_timestamp
-            norm_spinner.succeed("Text normalized and romanized.")
+            spinner.succeed("Text normalized and romanized.")
 
-            align_spinner = Halo("Aligning...").start()
+            spinner.text = "Aligning..."
+            spinner.start()
 
             segments, stride = get_alignments(
                 wav_output,
@@ -141,17 +155,22 @@ def align_matches(
                 }
 
                 sections.append(section)
-        except Exception:
-            session_doc_ref.set({"status": Status.FAILED.value}, merge=True)
+        except Exception as e:
+            spinner.fail("Failed to align.")
+            print(e)
+            session_doc_ref.set(
+                {"status": Status.FAILED.value, "error": str(e)}, merge=True
+            )
             return
 
-        align_spinner.succeed("Alignment done.")
+        spinner.succeed("Alignment done.")
 
-        clean_spinner = Halo("Cleaning up...").start()
+        spinner.text = "Cleaning up..."
+        spinner.start()
         os.remove(wav_output)
         os.remove(audio_output)
         os.remove(text_output)
-        clean_spinner.succeed("Cleaned up.")
+        spinner.succeed("Cleaned up.")
 
         file_timestamps.append(
             {
@@ -160,6 +179,8 @@ def align_matches(
                 "sections": sections,
             }
         )
+        progress += 1
+        session_doc_ref.set({"progress": progress}, merge=True)
 
     doc_spinner = Halo("Uploading to Firestore...").start()
     session_doc_ref.set(

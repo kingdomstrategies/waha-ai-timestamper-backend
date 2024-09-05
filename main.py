@@ -74,7 +74,15 @@ def align_session():
 
     matched_files = match_files(files)
 
-    session_doc_ref.set({"status": Status.IN_PROGRESS.value}, merge=True)
+    session_doc_ref.set(
+        {
+            "status": Status.IN_PROGRESS.value,
+            "total": None,
+            "progress": None,
+            "error": None,
+        },
+        merge=True,
+    )
 
     # Start alignment in a separate process to avoid blocking the main
     # thread and to send a response to the client immediately.
