@@ -1,4 +1,5 @@
 import os
+import time
 from multiprocessing.dummy import Pool
 
 import torch
@@ -77,6 +78,10 @@ def align_session():
     session_doc_ref.set(
         {
             "status": Status.IN_PROGRESS.value,
+            "start": time.time(),
+            # Overwrite the previous values in case we are restarting a
+            # previous alignment.
+            "end": None,
             "total": None,
             "progress": None,
             "error": None,

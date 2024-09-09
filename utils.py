@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ def match_files(
     """
 
     audio_extensions = {".wav", ".mp3"}
-    text_extension = ".txt"
+    text_extensions = {".txt", ".usfm"}
 
     # Dictionary to store matched files by name (without extension)
     matched_files = {}
@@ -37,7 +38,7 @@ def match_files(
                 (filename, url, path),
                 matched_files[name][1],
             )  # Store audio file
-        elif ext == text_extension:
+        elif ext in text_extensions:
             if name not in matched_files:
                 matched_files[name] = (None, None)
             matched_files[name] = (
@@ -107,9 +108,56 @@ def align_matches(
 
             spinner.text = "Normalizing and romanizing... "
             spinner.start()
-            lines_to_timestamp = (
-                open(text_output, "r", encoding="utf-8").read().split("\n")
-            )
+
+            text_extension = match[1][0].split(".")[-1]
+
+            text_file = open(text_output, "r", encoding="utf-8")
+            lines_to_timestamp = []
+
+            if text_extension == "txt":
+                lines_to_timestamp = text_file.read().split("\n")
+            elif text_extension == "usfm":
+                # Define the tags to ignore
+                ignore_tags = [
+                    "\\c",
+                    "\\p",
+                    "\\s",
+                    "\\s1",
+                    "\\s2",
+                    "\\f",
+                    "\\ft",
+                    "\\fr",
+                    "\\x",
+                    "\\xt",
+                    "\\xo",
+                    "\\r",
+                    "\\t",
+                    "\\m",
+                ]
+
+                # Compile a regex to match tags we want to ignore
+                ignore_regex = re.compile(
+                    r"|".join(re.escape(tag) for tag in ignore_tags)
+                )
+                current_verse = ""
+                for line in text_file:
+                    if ignore_regex.match(line.strip()):
+                        continue
+
+                    if line.startswith(r"\v"):  # USFM verse marker
+                        if current_verse:
+                            cleaned_verse = re.sub(
+                                r"\\[a-z]+\s?", "", current_verse.strip()
+                            )
+                            lines_to_timestamp.append(cleaned_verse)
+                        current_verse = line.strip()  # Start a new verse
+                    else:
+                        current_verse += " " + line.strip()
+
+                if current_verse:  # Append the last verse after the loop
+                    cleaned_verse = re.sub(r"\\[a-z]+\s?", "", current_verse.strip())
+                    lines_to_timestamp.append(cleaned_verse)
+
             norm_lines_to_timestamp = [
                 text_normalize(line.strip(), language) for line in lines_to_timestamp
             ]
@@ -184,6 +232,11 @@ def align_matches(
 
     doc_spinner = Halo("Uploading to Firestore...").start()
     session_doc_ref.set(
-        {"timestamps": file_timestamps, "status": Status.DONE.value}, merge=True
+        {
+            "timestamps": file_timestamps,
+            "status": Status.DONE.value,
+            "end": time.time(),
+        },
+        merge=True,
     )
     doc_spinner.succeed("Uploaded to Firestore.")
