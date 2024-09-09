@@ -53,6 +53,7 @@ def match_files(
 def align_matches(
     session_id: str,
     language: str,
+    separator: str,
     session_doc_ref: Any,
     matches: list[tuple[File, File]],
     model: Any,
@@ -69,6 +70,7 @@ def align_matches(
 
     progress = 0
     session_doc_ref.set({"total": len(matches), "progress": progress}, merge=True)
+    total_length = 0
 
     for match in matches:
         session_doc_ref.set({"current": match[0][0]}, merge=True)
@@ -90,6 +92,7 @@ def align_matches(
             spinner.text = f"Converting audio to {wav_output}..."
             spinner.start()
 
+            total_length += float(ffmpeg.probe(audio_output)["streams"][0]["duration"])
             stream = ffmpeg.input(audio_output)
             stream = ffmpeg.output(stream, wav_output, acodec="pcm_s16le", ar=16000)
             stream = ffmpeg.overwrite_output(stream)
@@ -115,7 +118,16 @@ def align_matches(
             lines_to_timestamp = []
 
             if text_extension == "txt":
-                lines_to_timestamp = text_file.read().split("\n")
+                # Read the separator from the query parameter and adjust
+                # it so it can be used in the split function.
+                if separator == "lineBreak":
+                    separator = "\n"
+                elif separator == "squareBracket":
+                    separator = "["
+                elif separator == "downArrow":
+                    separator = "⬇️"
+
+                lines_to_timestamp = text_file.read().split(separator)
             elif text_extension == "usfm":
                 # Define the tags to ignore
                 ignore_tags = [
@@ -236,6 +248,7 @@ def align_matches(
             "timestamps": file_timestamps,
             "status": Status.DONE.value,
             "end": time.time(),
+            "total_length": total_length,
         },
         merge=True,
     )

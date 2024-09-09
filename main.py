@@ -48,11 +48,14 @@ load_spinner.succeed("Model and dictionary loaded. Ready to receive requests.")
 def align_session():
     language = request.args.get("lang")
     session_id = request.args.get("session-id")
+    separator = request.args.get("separator")
 
     if language is None:
         return "Missing lang parameter", 400
     elif session_id is None:
         return "Missing session-id parameter", 400
+    elif separator is None:
+        return "Missing separator parameter", 400
 
     blobs = bucket.list_blobs(prefix=f"sessions/{session_id}")
     files: list[File] = []
@@ -93,7 +96,15 @@ def align_session():
     # thread and to send a response to the client immediately.
     pool.apply_async(
         align_matches,
-        [session_id, language, session_doc_ref, matched_files, model, dictionary],
+        [
+            session_id,
+            language,
+            separator,
+            session_doc_ref,
+            matched_files,
+            model,
+            dictionary,
+        ],
     )
     # align_matches(
     #     session_id, language, session_doc_ref, matched_files, model, dictionary
