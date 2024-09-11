@@ -1,13 +1,16 @@
 import os
 import time
 from multiprocessing.dummy import Pool
+from pathlib import Path
 
+import ffmpeg
 import torch
 from flask import Flask, request
 from halo import Halo
 
 from constants import dict_name, dict_url, model_name, model_url
 from firebase import bucket, db
+from lid import identify_language
 from mms.align_utils import DEVICE, get_model_and_dict
 from timestamp_types import File, Status
 from utils import align_matches, match_files
@@ -44,12 +47,70 @@ model = model.to(DEVICE)
 load_spinner.succeed("Model and dictionary loaded. Ready to receive requests.")
 
 
+@app.route("/lid")
+def lid():
+    session_id = request.args.get("session-id")
+    file_name = request.args.get("file-name")
+
+    if session_id is None:
+        return "Missing session-id parameter", 400
+    elif file_name is None:
+        return "Missing file-name parameter", 400
+    folder = f"/tmp/sessions/{session_id}"
+    Path(folder).mkdir(parents=True, exist_ok=True)
+    audio_output = f"{folder}/{file_name}"
+    audio_type = file_name.split(".")[-1]
+
+    spinner = Halo(text="Downloading audio file...").start()
+    try:
+        bucket.blob(f"sessions/{session_id}/{file_name}").download_to_filename(
+            audio_output
+        )
+        spinner.succeed("Audio file downloaded.")
+    except Exception as e:
+        spinner.fail(f"Error downloading audio file: {e}")
+        return "Error downloading audio file.", 500
+
+    spinner.text = "Converting audio file to WAV and trimming..."
+    spinner.start()
+
+    try:
+        wav_output = audio_output.replace(f".{audio_type}", "_output.wav")
+        stream = ffmpeg.input(audio_output)
+        stream = ffmpeg.output(stream, wav_output, acodec="pcm_s16le", ar=16000, t=30)
+        stream = ffmpeg.overwrite_output(stream)
+        ffmpeg.run(
+            stream,
+            overwrite_output=True,
+            cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
+        )
+        spinner.succeed("Audio file converted to WAV and trimmed.")
+    except Exception as e:
+        spinner.fail(f"Error converting audio file: {e}")
+        return "Error converting audio file.", 500
+
+    spinner.text = "Identifying language..."
+    spinner.start()
+
+    try:
+        language = identify_language(wav_output)
+        spinner.succeed(f"Language identified: {language}")
+    except Exception as e:
+        spinner.fail(f"Error identifying language: {e}")
+        return "Error identifying language.", 500
+
+    return language, 200
+
+
 @app.route("/")
 def align_session():
     session_id = request.args.get("session-id")
     separator = request.args.get("separator")
+    language = request.args.get("lang")
 
-    if session_id is None:
+    if language is None:
+        return "Missing lang parameter", 400
+    elif session_id is None:
         return "Missing session-id parameter", 400
     elif separator is None:
         return "Missing separator parameter", 400
@@ -95,6 +156,7 @@ def align_session():
         align_matches,
         [
             session_id,
+            language,
             separator,
             session_doc_ref,
             matched_files,

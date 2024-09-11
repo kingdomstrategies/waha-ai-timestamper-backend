@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import time
@@ -10,12 +9,9 @@ import ffmpeg
 from halo import Halo
 
 from firebase import bucket
-from lid import identify_language
 from mms.align_utils import get_alignments, get_spans, get_uroman_tokens
 from mms.text_normalization import text_normalize
 from timestamp_types import File, FileTimestamps, Match, Section, Status
-
-mms_languages = json.load(open("mms_languages.json"))
 
 
 def match_files(
@@ -57,6 +53,7 @@ def match_files(
 
 def align_matches(
     session_id: str,
+    language: str,
     separator: str,
     session_doc_ref: Any,
     matches: list[tuple[File, File]],
@@ -75,9 +72,8 @@ def align_matches(
     progress = 0
     session_doc_ref.set({"total": len(matches), "progress": progress}, merge=True)
     total_length = 0
-    language = "eng"
 
-    for index, match in enumerate(matches):
+    for match in matches:
         session_doc_ref.set({"current": match[0][0]}, merge=True)
         try:
             audio_output = f"{folder}/{match[0][0]}"
@@ -109,39 +105,39 @@ def align_matches(
             # Identify the session language. This is time
             # consuming so we only do it for the first file and assume
             # all files are the same language.
-            if index == 0:
-                # Cut down audio to 10 seconds for language
-                # identification.
-                spinner.text = "Identifying language..."
-                spinner.start()
-                cut_output = f"{folder}/cut_output.wav"
-                stream = ffmpeg.input(wav_output)
-                stream = ffmpeg.output(stream, cut_output, t=30)
-                stream = ffmpeg.overwrite_output(stream)
-                ffmpeg.run(
-                    stream,
-                    overwrite_output=True,
-                    cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
-                )
+            # if index == 0:
+            #     # Cut down audio to 10 seconds for language
+            #     # identification.
+            #     spinner.text = "Identifying language..."
+            #     spinner.start()
+            #     cut_output = f"{folder}/cut_output.wav"
+            #     stream = ffmpeg.input(wav_output)
+            #     stream = ffmpeg.output(stream, cut_output, t=30)
+            #     stream = ffmpeg.overwrite_output(stream)
+            #     ffmpeg.run(
+            #         stream,
+            #         overwrite_output=True,
+            #         cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
+            #     )
 
-                language = identify_language(cut_output)
-                language_match = next(
-                    (item for item in mms_languages if item["iso"] == language), None
-                )
+            #     language = identify_language(cut_output)
+            #     language_match = next(
+            #         (item for item in mms_languages if item["iso"] == language), None
+            #     )
 
-                if language_match is None or not language_match["align"]:
-                    spinner.fail(f"Detected language {language} not supported.")
-                    session_doc_ref.set(
-                        {
-                            "status": Status.FAILED.value,
-                            "error": f"Detected language {language} not supported.",
-                        },
-                        merge=True,
-                    )
-                    return
-                else:
-                    spinner.succeed(f"Valid language identified as {language}.")
-                    session_doc_ref.set({"language": language}, merge=True)
+            #     if language_match is None or not language_match["align"]:
+            #         spinner.fail(f"Detected language {language} not supported.")
+            #         session_doc_ref.set(
+            #             {
+            #                 "status": Status.FAILED.value,
+            #                 "error": f"Detected language {language} not supported.",
+            #             },
+            #             merge=True,
+            #         )
+            #         return
+            #     else:
+            #         spinner.succeed(f"Valid language identified as {language}.")
+            #         session_doc_ref.set({"language": language}, merge=True)
 
             text_output = f"{folder}/{match[1][0]}"
             spinner.text = f"Downloading text to {text_output}..."
@@ -259,7 +255,7 @@ def align_matches(
             spinner.fail("Failed to align.")
             print(traceback.format_exc())
             session_doc_ref.set(
-                {"status": Status.FAILED.value, "error": str(e), "language": None},
+                {"status": Status.FAILED.value, "error": str(e)},
                 merge=True,
             )
             return
