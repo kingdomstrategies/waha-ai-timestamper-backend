@@ -8,3 +8,7 @@ uroman
 firebase-admin
 ffmpeg-python
 halo
+omegaconf
+hydra-core
+transformers
+# git+https://github.com/liyaodev/fairseq.git
