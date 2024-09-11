@@ -10,5 +10,5 @@ ffmpeg-python
 halo
 omegaconf
 hydra-core
-transformers
+transformers[torch]
 # git+https://github.com/liyaodev/fairseq.git
