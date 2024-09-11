@@ -4,6 +4,7 @@ from multiprocessing.dummy import Pool
 from pathlib import Path
 
 import ffmpeg
+import flask
 import torch
 from flask import Flask, request
 from halo import Halo
@@ -99,7 +100,9 @@ def lid():
         spinner.fail(f"Error identifying language: {e}")
         return "Error identifying language.", 500
 
-    return language, 200
+    response = flask.jsonify({"language": language})
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
 
 
 @app.route("/")
@@ -167,5 +170,6 @@ def align_session():
     # align_matches(
     #     session_id, language, session_doc_ref, matched_files, model, dictionary
     # )
-
-    return "Alignment started.", 200
+    response = flask.jsonify({"message": "Alignment started."})
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
