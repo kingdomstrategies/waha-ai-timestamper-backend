@@ -110,9 +110,21 @@ def align_matches(
             # consuming so we only do it for the first file and assume
             # all files are the same language.
             if index == 0:
+                # Cut down audio to 10 seconds for language
+                # identification.
                 spinner.text = "Identifying language..."
                 spinner.start()
-                language = identify_language(wav_output)
+                cut_output = f"{folder}/cut_output.wav"
+                stream = ffmpeg.input(wav_output)
+                stream = ffmpeg.output(stream, cut_output, t=30)
+                stream = ffmpeg.overwrite_output(stream)
+                ffmpeg.run(
+                    stream,
+                    overwrite_output=True,
+                    cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
+                )
+
+                language = identify_language(cut_output)
                 language_match = next(
                     (item for item in mms_languages if item["iso"] == language), None
                 )
