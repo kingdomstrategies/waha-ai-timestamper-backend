@@ -78,7 +78,7 @@ def lid():
     try:
         wav_output = audio_output.replace(f".{audio_type}", "_output.wav")
         stream = ffmpeg.input(audio_output)
-        stream = ffmpeg.output(stream, wav_output, acodec="pcm_s16le", ar=16000, t=30)
+        stream = ffmpeg.output(stream, wav_output, acodec="pcm_s16le", ar=16000, t=20)
         stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run(
             stream,
