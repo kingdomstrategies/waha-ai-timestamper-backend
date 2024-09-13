@@ -102,6 +102,7 @@ def lid():
 
     response = flask.jsonify({"language": language})
     response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET")
     return response
 
 
@@ -172,4 +173,5 @@ def align_session():
     # )
     response = flask.jsonify({"message": "Alignment started."})
     response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add("Access-Control-Allow-Methods", "GET")
     return response
