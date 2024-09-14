@@ -102,43 +102,6 @@ def align_matches(
             )
             spinner.succeed(f"Audio downloaded and converted to {wav_output}.")
 
-            # Identify the session language. This is time
-            # consuming so we only do it for the first file and assume
-            # all files are the same language.
-            # if index == 0:
-            #     # Cut down audio to 10 seconds for language
-            #     # identification.
-            #     spinner.text = "Identifying language..."
-            #     spinner.start()
-            #     cut_output = f"{folder}/cut_output.wav"
-            #     stream = ffmpeg.input(wav_output)
-            #     stream = ffmpeg.output(stream, cut_output, t=30)
-            #     stream = ffmpeg.overwrite_output(stream)
-            #     ffmpeg.run(
-            #         stream,
-            #         overwrite_output=True,
-            #         cmd=["ffmpeg", "-loglevel", "error"],  # type: ignore
-            #     )
-
-            #     language = identify_language(cut_output)
-            #     language_match = next(
-            #         (item for item in mms_languages if item["iso"] == language), None
-            #     )
-
-            #     if language_match is None or not language_match["align"]:
-            #         spinner.fail(f"Detected language {language} not supported.")
-            #         session_doc_ref.set(
-            #             {
-            #                 "status": Status.FAILED.value,
-            #                 "error": f"Detected language {language} not supported.",
-            #             },
-            #             merge=True,
-            #         )
-            #         return
-            #     else:
-            #         spinner.succeed(f"Valid language identified as {language}.")
-            #         session_doc_ref.set({"language": language}, merge=True)
-
             text_output = f"{folder}/{match[1][0]}"
             spinner.text = f"Downloading text to {text_output}..."
             spinner.start()
@@ -164,6 +127,15 @@ def align_matches(
                     separator = "⬇️"
 
                 lines_to_timestamp = text_file.read().split(separator)
+
+                # Add back in square bracket or custom separator to the beginning of
+                # each line if it was removed.
+                if separator == "[":
+                    lines_to_timestamp = [f"[{line}" for line in lines_to_timestamp]
+                elif separator != "\n" and separator != "⬇️":
+                    lines_to_timestamp = [
+                        f"{separator}{line}" for line in lines_to_timestamp
+                    ]
             elif text_extension == "usfm":
                 # Define the tags to ignore
                 ignore_tags = [
