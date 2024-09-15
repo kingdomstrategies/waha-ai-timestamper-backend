@@ -1,6 +1,6 @@
-# TimestampAudio Backend by Waha
+# TimestampAudio.com Backend by Waha
 
-[TimeStampAudio](https://timestampaudio.com) generates timing data from any audio and corresponding text file combination, in the over [1,100 languages](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html) supported by [Meta's MMS ASR model](https://ai.meta.com/blog/multilingual-model-speech-recognition/), outputting the results in JSON and SRT format.
+[TimeStampAudio.com](https://timestampaudio.com) generates timing data from any audio and corresponding text file combination, in the over [1,100 languages](https://dl.fbaipublicfiles.com/mms/misc/language_coverage_mms.html) supported by [Meta's MMS ASR model](https://ai.meta.com/blog/multilingual-model-speech-recognition/), outputting the results in JSON and SRT format.
 
 
 This repo is for the backend of our [web app](https://timestampaudio.com) , which should be run on a GPU connected server, either local or cloud-based.
