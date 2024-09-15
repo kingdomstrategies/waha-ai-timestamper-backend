@@ -131,10 +131,14 @@ def align_matches(
                 # Add back in square bracket or custom separator to the beginning of
                 # each line if it was removed.
                 if separator == "[":
-                    lines_to_timestamp = [f"[{line}" for line in lines_to_timestamp]
+                    lines_to_timestamp = [
+                        f"[{line}" for line in lines_to_timestamp if line.strip() != ""
+                    ]
                 elif separator != "\n" and separator != "⬇️":
                     lines_to_timestamp = [
-                        f"{separator}{line}" for line in lines_to_timestamp
+                        f"{separator}{line}"
+                        for line in lines_to_timestamp
+                        if line.strip() != ""
                     ]
             elif text_extension == "usfm":
                 # Define the tags to ignore
