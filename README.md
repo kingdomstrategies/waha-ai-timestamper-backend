@@ -43,7 +43,7 @@ After this, you'll want to setup your firewall. [This tutorial](https://www.digi
 \
 At this point you'll want to set up Nginx. Add an Nginx conf file like below to your `/etc/nginx/sites-available/` directory. We called the file `api`.
 
-```api`
+```api
 server {
         server_name [YOUR_SERVER_SUBDOMAIN];
 
